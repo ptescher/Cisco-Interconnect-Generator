@@ -1,0 +1,5 @@
+router ospf <%= @client_id %> vrf <%= @vrf %>
+ passive-interface <%= @client_interface %>
+ <% @networks.each do |network| %>
+ network <%= @network['address'] %>  <%= @network['netmask'] %> area 0.0.0.0
+ <% end %>

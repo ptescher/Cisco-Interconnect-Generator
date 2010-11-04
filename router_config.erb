@@ -1,0 +1,6 @@
+interface <%= @interface %>.<%= @vlan %>
+ description <%= @description %>
+ encapsulation dot1Q <%= @vlan %>
+ ip vrf forwarding <%= @vrf %>
+ ip address <%= @address %> <%= @netmask %>
+ ip ospf network point-to-point
