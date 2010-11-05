@@ -1,0 +1,5 @@
+cf interface add entrytype=vlan name="<%= @description %>" \
+    hwdevice=lagg0 enabled=yes vlan_id=<%= @vlan %> zone=<%= @vrf %> \
+    addresses=<%= @address %>/<%= @length %> mtu=1500 \
+    vlan_dev=vlan<%= @vlan %>
+
