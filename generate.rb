@@ -55,7 +55,7 @@ end
     @CurrentVLANID = @CurrentVLANID - 1
     @SubnetData = @CurrentSubnet.split('.')
     if (@SubnetData[3] == "0")
-     @SubnetData[3] = 255 - (2**(32 - InterconnectVLANSize))
+     @SubnetData[3] = 256 - (2**(32 - InterconnectVLANSize))
      @SubnetData[2] = @SubnetData[2].to_i - 1
     else
      @SubnetData[3] = @SubnetData[3].to_i - (2**(32 - InterconnectVLANSize))
