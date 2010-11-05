@@ -10,7 +10,7 @@ CountDown = true
 InterconnectVLANSize = 29
 
 Devices = [
- {'Name' => 'Router02', 'Type' => 'Router', 'Interface' => 'GigabitEthernet0/1', 'Vendor' => 'Cisco'},
+ {'Name' => 'Router02', 'Type' => 'Router', 'Interface' => 'GigabitEthernet0/0', 'Vendor' => 'Cisco'},
  {'Name' => 'Switch03', 'Type' => 'Switch', 'Vendor' => 'Cisco'},
  {'Name' => 'Firewall', 'Type' => 'Other'}
 ]
@@ -147,7 +147,9 @@ Devices.each do |@Device|
    end
    @VRF['Networks'].each do |@Subnet|
     @network = {'address' => @Subnet.split('/')[0]}
-	case @Subnet.split('/')[1]
+	case @Subnet.split('/')[1].to_i
+     when 24
+      @netmask = "255.255.255.0"
      when 29
       @netmask = "255.255.255.248"
      when 30
