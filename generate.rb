@@ -12,7 +12,7 @@ InterconnectVLANSize = 29
 Devices = [
  {'Name' => 'Router02', 'Type' => 'Router', 'Interface' => 'GigabitEthernet0/0', 'Vendor' => 'Cisco'},
  {'Name' => 'Switch03', 'Type' => 'Switch', 'Vendor' => 'Cisco'},
- {'Name' => 'Firewall', 'Type' => 'Other'}
+ {'Name' => 'Firewall', 'Type' => 'Firewall', 'Vendor' => 'McAfee'}
 ]
 
 ## End Configuragion
@@ -44,7 +44,7 @@ end
   @UnconnectedDevices.pop
   @UnconnectedDevices.each do |@ConnectingDevice|
    @VLAN = {
-    "Description" => "#{@VRF['Name']} #{@Device['Name']} to #{@ConnectingDevice['Name']} ",
+    "Description" => "#{@VRF['Name']} #{@Device['Name']} to #{@ConnectingDevice['Name']}",
     "Devices" => [@Device,@ConnectingDevice],
     "VLAN" => @CurrentVLANID,
     "Subnet" => @CurrentSubnet,
@@ -79,6 +79,16 @@ Devices.each do |@Device|
   puts "\n*** I don't know how to generate a config for #{@Device['Name']} ***\n\n"
  end
  
+ # Add VRFs or Zones
+ @VRFs.each do |@VRF|
+  case @Device['Vendor']
+   when 'Cisco'
+    puts "vrf #{@VRF['Name']}\n\n"
+   when 'McAfee'
+    puts "cf zone add name=#{@VRF['Name']} modes=14\n\n"
+  end
+ end
+
  
  # Add all the interconnect VLANs
  @InterconnectVLANs.each do |@Interconnect|
@@ -91,6 +101,7 @@ Devices.each do |@Device|
   # Use the index to decide which IP is the first
   @octets[3] = @octets[3].to_i + 1 + @Interconnect['Devices'].index(@Device).to_i
   @address = @octets.join('.')
+  @length = InterconnectVLANSize
 
   # Manual Subnet Mask
   case InterconnectVLANSize
@@ -102,10 +113,11 @@ Devices.each do |@Device|
   
   # Spit out config
   if (@Interconnect['Devices'].index(@Device))
-   if (File::exists?("#{@Device['Type'].downcase}_config.erb"))
-    puts ERB.new(File.read("#{@Device['Type'].downcase}_config.erb")).result
+   if (File::exists?("#{@Device['Vendor'].downcase}_#{@Device['Type'].downcase}_config.erb"))
+    puts ERB.new(File.read("#{@Device['Vendor'].downcase}_#{@Device['Type'].downcase}_config.erb")).result
 	puts "\n"
    else
+    puts "! DEBUG: No file #{@Device['Vendor'].downcase}_#{@Device['Type'].downcase}_config.erb"
     puts "! Need to manually configure #{@description}"
     puts "!    VLAN: #{@vlan}"
     puts "!     VRF: #{@vrf}"
@@ -159,6 +171,9 @@ Devices.each do |@Device|
 	@networks.push @network
    end
    puts ERB.new(File.read("ospf.erb")).result
+   
+  elsif (@Device['Vendor'] == 'McAfee')
+   puts "! Need to manually configure OSPF for VRF #{@VRF['Name']}\n\n"
   else
    puts "! Need to manually configure OSPF for VRF #{@VRF['Name']}\n\n"
   end
