@@ -1,0 +1,9 @@
+This ruby script generates a config files from input.csv
+
+Attached is an example csv file. To run it, copy example.csv to input.csv and then run generate.rb
+
+By default we assume you want /29 interconnects starting at VLAN 3999 and going down.
+
+We also assume that you want to start at 10.127.255.248 and go down.
+
+You can edit these defaults in generate.rb.
