@@ -21,7 +21,7 @@ Devices = [
 
 @VRFs = []
 
-CSV.open('input.csv', 'r', ',') do |row|
+CSV.open('input.csv', 'r', ?,, ?\r) do |row|
  unless row[0] == "Description"
   @VRF = { "Description" => row[0],"Name" => row[1],"VLAN" => row[2],"OSPF" => row[3],"Networks" => row[4].split(' ') }
   @VRFs.push @VRF
@@ -106,10 +106,10 @@ Devices.each do |@Device|
     puts ERB.new(File.read("#{@Device['Type'].downcase}_config.erb")).result
 	puts "\n"
    else
-    puts "Need to manually configure #{@description}"
-    puts "    VLAN: #{@vlan}"
-    puts "     VRF: #{@vrf}"
-    puts " ADDRESS: #{@address}/#{InterconnectVLANSize}"
+    puts "! Need to manually configure #{@description}"
+    puts "!    VLAN: #{@vlan}"
+    puts "!     VRF: #{@vrf}"
+    puts "! ADDRESS: #{@address}/#{InterconnectVLANSize}"
     puts "\n"
    end
   end
@@ -118,7 +118,7 @@ Devices.each do |@Device|
  # Add Client Interface
  
  @VRFs.each do |@VRF|
-  puts "Need to create client interface for #{@VRF['Description']}"
+  puts "! Need to create client interface for #{@VRF['Description']}\n\n"
  end
  
  # Create OSPF Process
@@ -158,7 +158,7 @@ Devices.each do |@Device|
    end
    puts ERB.new(File.read("ospf.erb")).result
   else
-   puts "Need to manually configure OSPF for VRF #{@VRF['Name']}\n\n"
+   puts "! Need to manually configure OSPF for VRF #{@VRF['Name']}\n\n"
   end
  end
 
