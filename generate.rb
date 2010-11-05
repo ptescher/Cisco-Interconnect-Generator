@@ -163,5 +163,9 @@ Devices.each do |@Device|
    puts "! Need to manually configure OSPF for VRF #{@VRF['Name']}\n\n"
   end
  end
+end
 
+puts "\n***The following VLANs need to be set up on the switches:\n\n"
+@InterconnectVLANs.each do |@VLAN|
+ puts "VLAN #{@VLAN['VLAN']} between #{@VLAN['Devices'][0]['Name']} and #{@VLAN['Devices'][1]['Name']}"
 end
