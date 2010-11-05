@@ -115,7 +115,13 @@ Devices.each do |@Device|
   end
  end
  
-  # Create OSPF Process
+ # Add Client Interface
+ 
+ @VRFs.each do |@VRF|
+  puts "Need to create client interface for #{@VRF['Description']}"
+ end
+ 
+ # Create OSPF Process
  @VRFs.each do |@VRF|
   if (@Device['Vendor'] == 'Cisco')
    @client_id = @VRF['OSPF']
