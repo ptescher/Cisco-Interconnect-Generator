@@ -7,14 +7,21 @@ require 'netaddr'
 ## Configuragion
 
 FirstCoreInterconnectVLAN = 3999
-CoreInterconnectSubnet = "10.127.0.0/16"
+FirstEdgeInterconnectVLAN = 2999
+CoreInterconnectSubnet = "10.127.0.0/16" #Allows 8000 Subnets
+EdgeInterconnectSubnet = "10.126.0.0/16" #Allows 8000 Subnets
 InterconnectVLANSize = 29
 CountDown = true
 
 CoreDevices = [
-  { 'Name' => 'Router02', 'Type' => 'Router', 'Interface' => 'GigabitEthernet0/0', 'Vendor' => 'Cisco' } ,
-  { 'Name' => 'Switch03', 'Type' => 'Switch', 'Vendor' => 'Cisco' } ,
-  { 'Name' => 'Firewall', 'Type' => 'Firewall', 'Vendor' => 'McAfee' }
+  { :Name => 'Router02', 'Type' => 'Router', 'Interface' => 'GigabitEthernet0/0', :Vendor => 'Cisco'},
+  { :Name => 'Switch03', 'Type' => 'Switch', :Vendor => 'Cisco'},
+  { :Name => 'Firewall', 'Type' => 'Firewall', :Vendor => 'McAfee' }
+]
+
+EdgeDevices = [
+  { :Name => 'Router01', 'Type' => 'Router', 'Interface' => 'FastEthernet0/0', :Vendor => 'Cisco', 'CoreDevice' =>  'Switch03'},
+  { :Name => 'Router02', 'Type' => 'Router', 'Interface' => 'FastEthernet0/0', :Vendor => 'Cisco', 'CoreDevice' =>  'Router02'}
 ]
 
 ## End Configuragion
@@ -31,63 +38,74 @@ CSV.open('input.csv', 'r', ?,, ?\r) do |row|
 end
 
 @CoreSubnets = NetAddr::CIDR.create(CoreInterconnectSubnet).subnet(:Bits => InterconnectVLANSize, :Objectify => true)
+@EdgeSubnets = NetAddr::CIDR.create(EdgeInterconnectSubnet).subnet(:Bits => InterconnectVLANSize, :Objectify => true)
 
 @InterconnectVLANs = []
 @CurrentVLANID = FirstCoreInterconnectVLAN
+@CurrentEdgeVLANID = FirstEdgeInterconnectVLAN
 
 # Calculate all interconnects we need and add them to the VRF
+@index = 0
 @VRFs.each do |@VRF|
-  if CountDown
-    @index = FirstCoreInterconnectVLAN - @CurrentVLANID
-  else
-    @index = @CurrentVLANID - FirstCoreInterconnectVLAN
-  end
   @VRF['Interconnects'] = []
   @UnconnectedCoreDevices = CoreDevices.clone
-
   # Go through all the CoreDevices and connect them to all the other CoreDevices
   while @UnconnectedCoreDevices.length > 0
     @Device = @UnconnectedCoreDevices.last
     @UnconnectedCoreDevices.pop
     @UnconnectedCoreDevices.each do |@ConnectingDevice|
+      @SubnetIndex = CountDown ? (@CoreSubnets.length - @index - 1) : @index
+      @CurrentVLANID = CountDown ? (FirstCoreInterconnectVLAN - @index) : FirstCoreInterconnectVLAN + @index
       @VLAN = {
-       "Description" =>"#{ @VRF['Name'] } #{ @Device['Name'] } to #{ @ConnectingDevice['Name'] }",
-       "CoreDevices" => [@Device,@ConnectingDevice],
+       "Description" =>"#{ @VRF['Name'] } #{ @Device[:Name] } to #{ @ConnectingDevice[:Name] }",
+       :Devices => [@Device[:Name],@ConnectingDevice[:Name]],
        "VLAN" => @CurrentVLANID,
-       "Subnet" => @CoreSubnets[@CoreSubnets.length - @index - 1],
+       "Subnet" => @CoreSubnets[@SubnetIndex],
        "VRF" => @VRF['Name']
       }
-      if CountDown
-        @CurrentVLANID = @CurrentVLANID - 1
-        @index = FirstCoreInterconnectVLAN - @CurrentVLANID
-      else
-        @CurrentVLANID = @CurrentVLANID + 1
-        @index = @CurrentVLANID - FirstCoreInterconnectVLAN
-      end
-        
+      @index += 1
       @VRF['Interconnects'].push @VLAN['Subnet']
       @InterconnectVLANs.push @VLAN
     end
   end
 end
+@index = 0
+@VRFs.each do |@VRF|
+  # Go through all the EdgeDevices and connect them to their host device
+  EdgeDevices.each do |@Device|
+    @SubnetIndex = CountDown ? (@EdgeSubnets.length - @index - 1) : @index
+    @CurrentVLANID = CountDown ? (FirstEdgeInterconnectVLAN - @index) : FirstEdgeInterconnectVLAN + @index
+    @VLAN = {
+     "Description" =>"#{ @VRF['Name'] } #{ @Device[:Name] } to #{ @Device['CoreDevice'] }",
+     :Devices => [@Device[:Name],@Device['CoreDevice']],
+     "VLAN" => @CurrentVLANID,
+     "Subnet" => @EdgeSubnets[@SubnetIndex],
+     "VRF" => @VRF[':Name']
+    }
+    @index += 1
+    @VRF['Interconnects'].push @VLAN['Subnet']
+    @InterconnectVLANs.push @VLAN
+  end
+end
 
 # Build the config for each device
-CoreDevices.each do |@Device|
+AllDevices = CoreDevices | EdgeDevices
+AllDevices.each do |@Device|
   @DeviceConfig = ""
-  if (File::exists?("#{@Device['Vendor'].downcase }_#{ @Device['Type'].downcase }_config.erb"))
-    puts "\n*** Start of config for #{ @Device['Name'] } ***\n\n"
+  if (File::exists?("#{@Device[:Vendor].downcase }_#{ @Device['Type'].downcase }_config.erb"))
+    puts "\n*** Start of config for #{ @Device[:Name] } ***\n\n"
   else
-    puts "\n*** I don't know how to generate a config for #{@Device['Name']} ***\n"
+    puts "\n*** I don't know how to generate a config for #{@Device[:Name]} ***\n"
     puts "\n*** (No #{@Device['Type'].downcase }_config.erb) ***\n\n"
   end
 
   # Add VRFs or Zones
   @VRFs.each do |@VRF|
-    case @Device['Vendor']
+    case @Device[:Vendor]
     when 'Cisco'
       puts "ip vrf #{ @VRF['Name'] }\n\n"
     when 'McAfee'
-      puts "cf zone add name=#{ @VRF['Name'] } modes=14\n\n"
+      puts "cf zone add name=#{ @VRF[':Name'] } modes=14\n\n"
     end
   end
 
@@ -100,18 +118,19 @@ CoreDevices.each do |@Device|
     
     
     # Spit out config
-    if (@Interconnect['CoreDevices'].index(@Device))
-      device_index = @Interconnect['CoreDevices'].index(@Device).to_i + 1
+    if (@Interconnect[:Devices].index(@Device[:Name]))
+      device_index = @Interconnect[:Devices].index(@Device[:Name]).to_i + 1
       subnet = @Interconnect['Subnet']
       ip_address = NetAddr::CIDR.create(subnet.enumerate[device_index])
       @address = ip_address.ip
       @netmask = subnet.wildcard_mask
+      @length = subnet.netmask
 
-      if (File::exists?("#{@Device['Vendor'].downcase }_#{ @Device['Type'].downcase }_config.erb"))
-        puts ERB.new(File.read("#{ @Device['Vendor'].downcase }_#{ @Device['Type'].downcase }_config.erb")).result
+      if (File::exists?("#{@Device[:Vendor].downcase }_#{ @Device['Type'].downcase }_config.erb"))
+        puts ERB.new(File.read("#{ @Device[:Vendor].downcase }_#{ @Device['Type'].downcase }_config.erb")).result
         puts "\n"
       else
-        puts "! DEBUG: No file #{ @Device['Vendor'].downcase }_#{ @Device['Type'].downcase }_config.erb"
+        puts "! DEBUG: No file #{ @Device[:Vendor].downcase }_#{ @Device['Type'].downcase }_config.erb"
         puts "! Need to manually configure #{ @description }"
         puts "! VLAN: #{ @vlan }"
         puts "! VRF: #{ @vrf }"
@@ -132,7 +151,7 @@ CoreDevices.each do |@Device|
     @client_id = @VRF['OSPF']
     @name = @VRF['Name']
     @client_interface = ""
-    if (@Device['Vendor'] == 'Cisco')
+    if (@Device[:Vendor] == 'Cisco')
       case @Device['Type']
       when 'Router'
         @client_interface = "#{ @Device['Interface'] }.#{ @VRF['VLAN'] }"
@@ -151,15 +170,15 @@ CoreDevices.each do |@Device|
       end
       puts ERB.new(File.read("ospf.erb")).result
 
-    elsif (@Device['Vendor'] == 'McAfee')
-      puts "! Need to manually configure OSPF for VRF #{ @VRF['Name'] }\n\n"
+    elsif (@Device[:Vendor] == 'McAfee')
+      puts "! Need to manually configure OSPF for VRF #{ @VRF[':Name'] }\n\n"
     else
-      puts "! Need to manually configure OSPF for VRF #{ @VRF['Name'] }\n\n"
+      puts "! Need to manually configure OSPF for VRF #{ @VRF[':Name'] }\n\n"
     end
   end
 end
 
 puts "\n***The following VLANs need to be set up on the switches:\n\n"
 @InterconnectVLANs.each do |@VLAN|
-  puts "VLAN #{ @VLAN['VLAN'] } between #{ @VLAN['CoreDevices'][0]['Name'] } and #{ @VLAN['CoreDevices'][1]['Name'] }"
+  puts "VLAN #{ @VLAN['VLAN'] } between #{ @VLAN[:Devices][0] } and #{ @VLAN[:Devices][1]}"
 end
